@@ -14,6 +14,7 @@ const {
     getCollectionName,
     pingQdrant
 } = require('./qdrantService');
+const {hybridSearch} = require("./hybridsearch")
 
 const CHUNK_SIZE = 1200;
 const CHUNK_OVERLAP = 200;
@@ -84,6 +85,8 @@ async function embedText(text) {
     return [];
 }
 
+
+
 function keywordScore(query, content) {
     const normalizedQuery = query.toLowerCase().trim();
     const normalizedContent = (content || '').toLowerCase();
@@ -128,6 +131,10 @@ async function buildQdrantPoints(userId, projectId, sourceType, sourceDocumentId
         const chunkIndex = chunk.chunkIndex ?? points.length;
 
         const embedding = await embedText(typeof text === 'string' ? text : String(text));
+        const sparseEmbedding = {
+            text,
+            model:"qdrant/bm25"
+        }
         if (!embedding.length) {
             console.warn(`[RAG] Skipping chunk ${chunkIndex} — empty embedding`);
             continue;
@@ -150,7 +157,10 @@ async function buildQdrantPoints(userId, projectId, sourceType, sourceDocumentId
 
         points.push({
             id: buildPointId(userId, projectId, sourceType, sourceDocumentId, chunkIndex),
-            vector: embedding,
+            vector: {
+                dense:embedding,
+                sparse: sparseEmbedding,
+            },
             payload
         });
     }
@@ -223,6 +233,7 @@ async function indexPrdDocument(userId, projectId, prdText, options = {}) {
 
         console.log(`[RAG] Qdrant upsert started`);
         await upsertKnowledgePoints(points, vectorSize);
+        
 
         const indexRecord = await PrdDocumentIndex.findOneAndUpdate(
             { userId, projectId },
@@ -370,6 +381,7 @@ async function searchProjectKnowledge(userId, query, options = {}) {
         userId,
         options.projectId,
         queryEmbedding,
+        query,
         { limit: limit * 2, scoreThreshold, filterExtra }
     );
 

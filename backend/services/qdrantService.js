@@ -85,8 +85,15 @@ async function ensureCollection(vectorSize) {
         if (!exists) {
             await qdrant.createCollection(collectionName, {
                 vectors: {
-                    size: vectorSize,
-                    distance: DISTANCE
+                    dense:{
+                        size: vectorSize,
+                        distance : "COSINE"
+                    }
+                },
+                sparse_vector:{
+                    sparse:{
+                        mdoifier : "idf"
+                    }
                 }
             });
             console.log(`[Qdrant] Created collection "${collectionName}" (dim=${vectorSize})`);
@@ -198,11 +205,28 @@ async function searchKnowledge(userId, projectId, queryVector, options = {}) {
 
     try {
         const response = await qdrant.query(collectionName, {
-            query: queryVector,
+            prefetch : [
+                {
+                    query: queryVector,
+                    using: "dense",
+                    filter,
+                    limit: limit*2,
+                },
+                {
+                    query:{
+                        text: queryText,
+                        model:"qdrant/bm25"
+                    },
+                    using:"sparse",
+                    filter,
+                    limit: limit*2
+                },
+            ],
+            query:{
+                rrf:{},
+            },
             limit,
-            filter,
-            score_threshold: scoreThreshold,
-            with_payload: true
+            with_payload:true
         });
 
         const points = response?.points || [];
