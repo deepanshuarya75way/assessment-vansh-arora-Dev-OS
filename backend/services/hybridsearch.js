@@ -57,5 +57,5 @@ const result = qdrant.query(collectionname, {
 })
 
 module.exports = {
-  hybridsearch
+  hybridSearch
 }
